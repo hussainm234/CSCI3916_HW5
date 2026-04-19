@@ -128,7 +128,7 @@ router.route('/movies')
       console.error(err);
       res.status(500).json({ success: false, message: 'Error retrieving movies.' });
     }
-    
+
   })  .post(authJwtController.isAuthenticated, async (req, res) => {
     const { title, releaseDate, genre, actors } = req.body;
 
@@ -152,6 +152,44 @@ router.route('/movies')
     res.status(405).json({ success: false, message: 'DELETE not supported on /movies. Use /movies/:title instead.' });
   });
 
+// SEARCH ROUTE (Extra Credit) — must be above /movies/:title
+router.route('/search')
+  .post(authJwtController.isAuthenticated, async (req, res) => {
+    try {
+      const { title, actorName } = req.body;
+
+      if (!title && !actorName) {
+        return res.status(400).json({ success: false, message: 'Provide title or actorName to search.' });
+      }
+
+      const matchStage = {};
+      if (title) matchStage.title = { $regex: title, $options: 'i' };
+      if (actorName) matchStage['actors.actorName'] = { $regex: actorName, $options: 'i' };
+
+      const results = await Movie.aggregate([
+        { $match: matchStage },
+        {
+          $lookup: {
+            from: 'reviews',
+            localField: '_id',
+            foreignField: 'movieId',
+            as: 'movieReviews'
+          }
+        },
+        {
+          $addFields: {
+            avgRating: { $avg: '$movieReviews.rating' }
+          }
+        },
+        { $sort: { avgRating: -1 } }
+      ]);
+
+      res.status(200).json({ success: true, movies: results });
+    } catch (err) {
+      res.status(500).json({ success: false, message: 'Error during search.' });
+    }
+  });
+
 // GET MOVIE BY TITLE — with optional ?reviews=true
 router.route('/movies/:title')
   .get(authJwtController.isAuthenticated, async (req, res) => {
@@ -164,7 +202,12 @@ router.route('/movies/:title')
               from: 'reviews',
               localField: '_id',
               foreignField: 'movieId',
-              as: 'reviews'
+              as: 'movieReviews'
+            }
+          },
+          {
+            $addFields: {
+              avgRating: { $avg: '$movieReviews.rating' }
             }
           }
         ]);
