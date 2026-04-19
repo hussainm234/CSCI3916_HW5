@@ -97,16 +97,39 @@ router.post('/signin', function(req, res) {
 
 // MOVIES ROUTES
 router.route('/movies')
-  .get(authJwtController.isAuthenticated, async (req, res) => {
+.get(authJwtController.isAuthenticated, async (req, res) => {
     try {
+      if (req.query.reviews === 'true') {
+        const docs = await Movie.aggregate([
+          {
+            $lookup: {
+              from: 'reviews',
+              localField: '_id',
+              foreignField: 'movieId',
+              as: 'movieReviews'
+            }
+          },
+          {
+            $addFields: {
+              avgRating: { $avg: '$movieReviews.rating' }
+            }
+          },
+          {
+            $sort: { avgRating: -1 }
+          }
+        ]).exec();
+        return res.status(200).json({ success: true, movies: docs });
+      }
+
+      // no ?reviews=true — just return all movies normally
       const movies = await Movie.find();
       res.status(200).json({ success: true, movies });
     } catch (err) {
       console.error(err);
       res.status(500).json({ success: false, message: 'Error retrieving movies.' });
     }
-  })
-  .post(authJwtController.isAuthenticated, async (req, res) => {
+    
+  })  .post(authJwtController.isAuthenticated, async (req, res) => {
     const { title, releaseDate, genre, actors } = req.body;
 
     if (!title || !releaseDate || !genre || !actors || actors.length === 0) {
