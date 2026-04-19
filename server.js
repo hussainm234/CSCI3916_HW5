@@ -263,10 +263,13 @@ router.route('/reviews')
     }
   })
   .post(authJwtController.isAuthenticated, async (req, res) => {
-    const { movieId, username, review, rating } = req.body;
+    const { movieId, review, rating } = req.body;
 
-    if (!movieId || !username || !review || rating === undefined) {
-      return res.status(400).json({ success: false, message: 'Please include movieId, username, review, and rating.' });
+    // Pull username from the JWT token instead of request body
+    const username = req.user.username;
+
+    if (!movieId || !review || rating === undefined) {
+      return res.status(400).json({ success: false, message: 'Please include movieId, review, and rating.' });
     }
 
     try {
